@@ -1,17 +1,15 @@
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
 
-
-@dataclass
-class Book:
+class Book(BaseModel):
     title: str
-    identifiers: dict[str, str]
-    authors: list[str]
+    identifiers: dict[str, str] = Field(default_factory=dict)
+    authors: list[str] = Field(default_factory=list)
     subtitle: str = ""
     origin_title: str = ""
     alt_title: str = ""
-    translators: list[str] = field(default_factory=list)
+    translators: list[str] = Field(default_factory=list)
     press: str = ""
-    producers: list[str] = field(default_factory=list)
+    producers: list[str] = Field(default_factory=list)
     pubdate: str = ""
     series_id: str = ""
     series: str = ""
@@ -20,8 +18,8 @@ class Book:
     binding: str = ""
     intro: str = ""
     toc: str = ""
-    languages: list[str] = field(default_factory=list)
+    languages: list[str] = Field(default_factory=list)
     cover_url: str = ""
-    tags: list[str] = field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
     rating: str = ""
     comments: str = ""

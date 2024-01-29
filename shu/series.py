@@ -1,7 +1,5 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
-
-@dataclass
-class Series:
+class Series(BaseModel):
     id: str
     title: str
