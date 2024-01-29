@@ -1,10 +1,10 @@
 from parsel import Selector
 import json
 
-def url_for(isbn):
+def book_url(isbn):
     return f'https://book.douban.com/isbn/{isbn}/'
 
-def parse(html):
+def parse_book(html):
     selector = Selector(html)
 
     fields = parse_info_block(selector)

@@ -2,7 +2,7 @@ import click
 import yaml
 
 
-from .source import douban
+from . import douban
 from .book import Book
 from .client import http_get
 
@@ -14,13 +14,13 @@ def main():
 @main.command()
 @click.argument("isbn")
 def get(isbn):
-    html = http_get(douban.url_for(isbn))
+    html = http_get(douban.book_url(isbn))
 
     if html is None:
         print("Book Not found")
         return
 
-    info = douban.parse(html)
+    info = douban.parse_book(html)
     book = Book(**info)
     print(yaml.dump(book.__dict__, allow_unicode=True, sort_keys=False))
 
