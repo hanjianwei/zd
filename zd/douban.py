@@ -185,7 +185,8 @@ class Douban:
 
     @cached_property
     def rating(self):
-        return self.selector.css('strong.rating_num::text').get().strip()
+        node = self.selector.css('strong.rating_num::text').get()
+        return "0" if node is None else node.strip()
 
     @cached_property
     def info(self):
