@@ -4,6 +4,8 @@ import json
 
 from functools import cached_property
 
+from .utils import is_isbn
+
 class Douban:
     def __init__(self, html:str):
         self.html = html
@@ -11,13 +13,13 @@ class Douban:
         self.subject = self.parse()
 
     @staticmethod
-    def make_url(kind, **kwargs):
-        if kind == 'book' and 'isbn' in kwargs: 
-            return f"https://book.douban.com/isbn/{kwargs['isbn']}/"
-        if kind in ['book', 'movie', 'music'] and 'id' in kwargs:
-            return f'https://{kind}.douban.com/subject/{kwargs["id"]}/'
+    def make_url(kind, id_):
+        if kind == 'book' and is_isbn(id_): 
+            return f"https://book.douban.com/isbn/{id_}/"
+        if kind in ['book', 'movie', 'music']:
+            return f'https://{kind}.douban.com/subject/{id_}/'
 
-        raise Exception(f'Unknown kind: {kind} or args: {kwargs}')
+        raise Exception(f'Unknown kind: {kind} or args: {id_}')
 
     def parse(self):
         if self.kind == 'book':

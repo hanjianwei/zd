@@ -12,9 +12,9 @@ def main():
     pass
 
 @main.command()
-@click.argument("isbn")
-def book(isbn):
-    url = Douban.make_url('book', isbn=isbn)
+@click.argument("douban_id_or_isbn")
+def book(douban_id_or_isbn):
+    url = Douban.make_url('book', douban_id_or_isbn)
     html = http_get(url)
 
     if html is None:
@@ -26,9 +26,9 @@ def book(isbn):
     print(yaml.dump(book.__dict__, allow_unicode=True, sort_keys=False))
 
 @main.command()
-@click.argument("sid")
-def movie(sid):
-    url = Douban.make_url('movie', id=sid)
+@click.argument("douban_id")
+def movie(douban_id):
+    url = Douban.make_url('movie', douban_id)
     html = http_get(url)
     if html is None:
         print("Movie Not found")
@@ -37,9 +37,9 @@ def movie(sid):
     print(yaml.dump(info, allow_unicode=True, sort_keys=False))
 
 @main.command()
-@click.argument("sid")
-def music(sid):
-    url = Douban.make_url('music', id=sid)
+@click.argument("douban_id")
+def music(douban_id):
+    url = Douban.make_url('music', douban_id)
     html = http_get(url)
     if html is None:
         print("Music Not found")
