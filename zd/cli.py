@@ -30,7 +30,8 @@ def series(series_id):
         douban = Douban(html, kind='series')
         info['books'].extend(douban.subject['books'])
 
-    print(yaml.dump(info, allow_unicode=True, sort_keys=False))
+    series = Series(**info)
+    print(yaml.dump(series.model_dump(exclude_unset=True), allow_unicode=True, sort_keys=False))
 
 @main.command()
 @click.argument("douban_id_or_isbn")
@@ -55,7 +56,8 @@ def movie(douban_id):
         print("Movie Not found")
         return
     info = Douban(html).subject
-    print(yaml.dump(info, allow_unicode=True, sort_keys=False))
+    movie = Movie(**info)
+    print(yaml.dump(movie.model_dump(exclude_unset=True), allow_unicode=True, sort_keys=False))
 
 @main.command()
 @click.argument("douban_id")
@@ -66,7 +68,8 @@ def music(douban_id):
         print("Music Not found")
         return
     info = Douban(html).subject
-    print(yaml.dump(info, allow_unicode=True, sort_keys=False))
+    music = Music(**info)
+    print(yaml.dump(music.model_dump(exclude_unset=True), allow_unicode=True, sort_keys=False))
 
 if __name__ == "__main__":
     main()

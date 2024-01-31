@@ -7,7 +7,7 @@ class Music(BaseModel):
     cover_url: str = ""
     identifiers: dict[str, str] = Field(default_factory=dict)
     authors: list[str] = Field(default_factory=list)
-    genres: list[str] = Field(default_factory=list)
+    genres: str = ""
     press: str = ""
     pubdate: str = ""
     media: str = ""
