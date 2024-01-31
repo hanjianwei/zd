@@ -4,12 +4,33 @@ import yaml
 
 from .douban import Douban
 from .book import Book
+from .movie import Movie
+from .music import Music
+from .series import Series
 from .client import http_get
 
 
 @click.group()
 def main():
     pass
+
+@main.command()
+@click.argument("series_id")
+def series(series_id):
+    url = Douban.make_url('series', series_id)
+    html = http_get(url)
+    if html is None:
+        print("Series Not found")
+        return
+    douban = Douban(html, kind='series')
+    info = douban.subject
+
+    while douban.next_url:
+        html = http_get(douban.next_url)
+        douban = Douban(html, kind='series')
+        info['books'].extend(douban.subject['books'])
+
+    print(yaml.dump(info, allow_unicode=True, sort_keys=False))
 
 @main.command()
 @click.argument("douban_id_or_isbn")

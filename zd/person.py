@@ -22,7 +22,7 @@ def parse_authors(info):
 
     return authors
 '''
-class Author(BaseModel):
+class Person(BaseModel):
     name: str
     alt_names: dict[str, str]
     citizenship: str

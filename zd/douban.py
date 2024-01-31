@@ -7,17 +7,22 @@ from functools import cached_property
 from .utils import is_isbn
 
 class Douban:
-    def __init__(self, html:str):
+    def __init__(self, html:str, kind=None):
         self.html = html
         self.selector = Selector(html)
+        self.kind = kind or self.detect_kind()
+        self.next_url = None # For paged results
+
         self.subject = self.parse()
 
-    @staticmethod
-    def make_url(kind, id_):
+    @classmethod
+    def make_url(cls, kind, id_):
         if kind == 'book' and is_isbn(id_): 
             return f"https://book.douban.com/isbn/{id_}/"
         if kind in ['book', 'movie', 'music']:
             return f'https://{kind}.douban.com/subject/{id_}/'
+        elif kind == 'series':
+            return f'https://book.douban.com/series/{id_}/'
 
         raise Exception(f'Unknown kind: {kind} or args: {id_}')
 
@@ -28,6 +33,8 @@ class Douban:
             return self.parse_movie()
         elif self.kind == 'music.album':
             return self.parse_music()
+        elif self.kind == 'series':
+            return self.parse_series()
         else:
             raise Exception(f'Unknown media type: {self.kind}')
 
@@ -67,6 +74,33 @@ class Douban:
             if v in self.info:
                 book[k] = self.info[v]
         
+        return book
+
+    def parse_series(self):
+        text = self.selector.xpath('string(//div[@id="content"]//div[@class="pl2"])').get().strip()
+        props = self.parse_properties(text)
+
+        series = dict(
+            title=self.title,
+            identifiers={ 'douban': self.douban_id },
+            url=self.url,
+            press=props['出版社'],
+            count=props['册数'],
+        )
+
+        book_elems = self.selector.css("li[class='subject-item'] div.info")
+        series['books'] = [self.parse_series_book(elem) for elem in book_elems]
+        self.next_url = self.selector.css("span.next a::attr(href)").get()
+
+        return series
+
+    def parse_series_book(self, elem):
+        book = {}
+        book['title'] = elem.css('a::text').get().strip()
+        book['url'] = elem.css('a::attr(href)').get().strip()
+        book['identifiers'] = { 'douban': book['url'].strip('/').split('/')[-1] }
+        book['intro'] = elem.css('div.pub::text').get().strip()
+
         return book
 
     def parse_movie(self):
@@ -141,13 +175,12 @@ class Douban:
 
         return music
 
-    @cached_property
-    def kind(self):
+    def detect_kind(self):
         return self.parse_meta('og:type')
 
     @cached_property
     def title(self):
-        return self.parse_meta('og:title')
+        return self.parse_meta('og:title') or self.selector.css('title::text').get().strip()
 
     @cached_property
     def authors(self):
@@ -171,7 +204,10 @@ class Douban:
 
     @cached_property
     def url(self):
-        return self.parse_meta('og:url')
+        if self.kind == 'series':
+            return self.selector.css("span[class='pl rr'] a").attrib['href'].split('?')[0]
+        else:
+            return self.parse_meta('og:url')
 
     @cached_property
     def douban_id(self):
@@ -194,6 +230,10 @@ class Douban:
     def info(self):
         ''' Parse lines for info block'''
         text = self.selector.xpath('string(//div[@id="info"])').get().strip()
+        return self.parse_properties(text)
+
+    def parse_properties(self, text):
+        ''' Parse lines for info block'''
         lines = [line.strip() for line in text.splitlines() if line.strip() != ""]
 
         props = {}
@@ -222,8 +262,12 @@ class Douban:
         node = self.selector.xpath(f'//meta[@property="{property}"]/@content')
         return node.getall() if multiple else node.get()
 
+
 if __name__ == "__main__":
     import sys
     with open(sys.argv[1]) as f:
         html = f.read()
-        print(Douban(html).subject)
+        if len(sys.argv) > 2:
+            print(Douban(html, kind=sys.argv[2]).subject)
+        else:
+            print(Douban(html).subject)
