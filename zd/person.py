@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 '''
 class Author:
@@ -24,7 +24,7 @@ def parse_authors(info):
 '''
 class Person(BaseModel):
     name: str
-    alt_names: dict[str, str]
+    alt_names: list[str] = Field(default_factory=list)
     citizenship: str
     born: str
     died: str
