@@ -7,12 +7,31 @@ from .book import Book
 from .movie import Movie
 from .music import Music
 from .series import Series
+from .fav_list import FavList
 from .client import http_get
 
 
 @click.group()
 def main():
     pass
+
+@main.command()
+@click.argument("doulist_id")
+def doulist(doulist_id):
+    url = Douban.make_url('doulist', doulist_id)
+    html = http_get(url)
+    if html is None:
+        print("Doulist Not found")
+        return
+    douban = Douban(html, kind='doulist')
+    info = douban.subject
+    while douban.next_url:
+        html = http_get(douban.next_url)
+        douban = Douban(html, kind='doulist')
+        info.items.extend(douban.subject.items)
+
+    print(yaml.dump(info.model_dump(exclude_unset=True), allow_unicode=True, sort_keys=False))
+
 
 @main.command()
 @click.argument("series_id")
@@ -28,7 +47,7 @@ def series(series_id):
     while douban.next_url:
         html = http_get(douban.next_url)
         douban = Douban(html, kind='series')
-        info['books'].extend(douban.subject['books'])
+        info['movies'].extend(douban.subject['movies'])
 
     series = Series(**info)
     print(yaml.dump(series.model_dump(exclude_unset=True), allow_unicode=True, sort_keys=False))
@@ -43,9 +62,8 @@ def book(douban_id_or_isbn):
         print("Book Not found")
         return
 
-    info = Douban(html).subject
-    book = Book(**info)
-    print(yaml.dump(book.__dict__, allow_unicode=True, sort_keys=False))
+    book = Douban(html).subject
+    print(yaml.dump(book.model_dump(exclude_unset=True), allow_unicode=True, sort_keys=False))
 
 @main.command()
 @click.argument("douban_id")

@@ -1,10 +1,16 @@
 from typing import Optional
 from parsel import Selector
 import json
+from loguru import logger
 
 from functools import cached_property
 
 from .utils import is_isbn
+from .book import Book
+from .movie import Movie
+from .music import Music
+from .series import Series
+from .fav_list import FavList
 
 class Douban:
     def __init__(self, html:str, kind=None):
@@ -23,23 +29,27 @@ class Douban:
             return f'https://{kind}.douban.com/subject/{id_}/'
         elif kind == 'series':
             return f'https://book.douban.com/series/{id_}/'
+        elif kind == 'doulist':
+            return f'https://www.douban.com/doulist/{id_}/'
 
         raise Exception(f'Unknown kind: {kind} or args: {id_}')
 
     def parse(self):
-        if self.kind == 'book':
-            return self.parse_book()
-        elif self.kind == 'video.movie':
-            return self.parse_movie()
-        elif self.kind == 'music.album':
-            return self.parse_music()
-        elif self.kind == 'series':
-            return self.parse_series()
+        dispatch = {
+            'book': self.parse_book,
+            'movie': self.parse_movie,
+            'music': self.parse_music,
+            'series': self.parse_series,
+            'doulist': self.parse_doulist,
+        }
+
+        if self.kind in dispatch:
+            return dispatch[self.kind]()
         else:
             raise Exception(f'Unknown media type: {self.kind}')
 
     def parse_book(self):
-        book = dict(
+        data = dict(
             title=self.title,
             authors=self.authors,
             identifiers={ 'douban': self.douban_id },
@@ -49,16 +59,16 @@ class Douban:
         )
 
         if '丛书' in self.info:
-            book['series'] = self.info['丛书']
-            book['series_id'] = self.selector.css('#info').re(r'https://book.douban.com/series/([0-9]*)')[0]
+            data['series'] = self.info['丛书']
+            data['series_id'] = self.selector.css('#info').re(r'https://book.douban.com/series/([0-9]*)')[0]
 
         if 'ISBN' in self.info:
-            book['identifiers']['isbn'] = self.info['ISBN']
+            data['identifiers']['isbn'] = self.info['ISBN']
         if '统一书号' in self.info:
-            book['identifiers']['csbn'] = self.info['统一书号']
+            data['identifiers']['csbn'] = self.info['统一书号']
 
         # Copy other info from info block
-        attrs_map = {
+        keymap = {
             'subtitle': '副标题',
             'original_title': '原作名',
             'translators': '译者',
@@ -70,41 +80,95 @@ class Douban:
             'binding': '装帧',
         }
 
-        for k, v in attrs_map.items():
+        for k, v in keymap.items():
             if v in self.info:
-                book[k] = self.info[v]
+                data[k] = self.info[v]
         
-        return book
+        return Book(**data)
 
     def parse_series(self):
         text = self.selector.xpath('string(//div[@id="content"]//div[@class="pl2"])').get().strip()
         props = self.parse_properties(text)
 
-        series = dict(
+        data = dict(
             title=self.title,
             identifiers={ 'douban': self.douban_id },
             url=self.url,
             press=props['出版社'],
-            count=props['册数'],
         )
 
         book_elems = self.selector.css("li[class='subject-item'] div.info")
-        series['books'] = [self.parse_series_book(elem) for elem in book_elems]
+        data['books'] = [self.parse_series_book(elem) for elem in book_elems]
         self.next_url = self.selector.css("span.next a::attr(href)").get()
 
-        return series
+        return Series(**data)
 
     def parse_series_book(self, elem):
-        book = {}
-        book['title'] = elem.css('a::text').get().strip()
-        book['url'] = elem.css('a::attr(href)').get().strip()
-        book['identifiers'] = { 'douban': book['url'].strip('/').split('/')[-1] }
-        book['intro'] = elem.css('div.pub::text').get().strip()
+        data = dict(
+            title=elem.css('a::text').get().strip(),
+            url=elem.css('a::attr(href)').get().strip(),
+            intro=elem.css('div.pub::text').get().strip(),
+        )
 
-        return book
+        data['identifiers'] = { 'douban': data['url'].strip('/').split('/')[-1] }
+
+        return Book(**data)
+
+    def parse_doulist(self):
+        data = dict(
+            title=self.title,
+            url=self.url,
+            identifiers={ 'douban': self.douban_id },
+            intro=self.selector.css("div.doulist-about::text").get().strip(),
+        )
+
+        elems = self.selector.css("div.doulist-item div.doulist-subject")
+        items = [self.parse_doulist_item(elem) for elem in elems]
+        data['items'] = [item for item in items if item is not None]
+        self.next_url = self.selector.css("span.next a::attr(href)").get()
+        return FavList(**data)
+
+    def parse_doulist_item(self, elem):
+        source = elem.css('div.source::text').get().strip()
+        if source == '来自：豆瓣电影':
+            return self.parse_doulist_movie(elem)
+        elif source == '来自：豆瓣读书':
+            return self.parse_doulist_book(elem)
+        else:
+            logger.warning(f'Unknown source: {source}')
+            return None
+
+    def parse_doulist_movie(self, elem):
+        data = dict(
+            title=elem.css('div.title a::text').get().strip(),
+            url=elem.css('div.title a::attr(href)').get().strip(),
+        )
+        data['identifiers'] = { 'douban': data['url'].strip('/').split('/')[-1] }
+        text = elem.xpath('string(//div[@class="abstract"])').get().strip()
+        props = self.parse_properties(text)
+        data['directors'] = props['导演'].split(' / ')
+        data['casts'] = props['主演'].split(' / ')
+        data['countries'] = props['制片国家/地区'].split(' / ')
+        data['year'] = props['年份']
+
+        return Movie(**data)
+
+    def parse_doulist_book(self, elem):
+        data = dict(
+            title=elem.css('div.title a::text').get().strip(),
+            url=elem.css('div.title a::attr(href)').get().strip(),
+        )
+        data['identifiers'] = { 'douban': data['url'].strip('/').split('/')[-1] }
+        text = elem.css('div.abstract::text').get().strip()
+        props = self.parse_properties(text)
+        data['authors'] = props['作者'].split(' / ')
+        data['press'] = props['出版社']
+        data['pubdate'] = props['出版年']
+
+        return Book(**data)
 
     def parse_movie(self):
-        movie = dict(
+        data = dict(
             title=self.title,
             directors=self.directors,
             casts=self.actors,
@@ -115,12 +179,12 @@ class Douban:
         )
 
         if 'IMDb' in self.info:
-            movie['identifiers']['imdb'] = self.info['IMDb']
+            data['identifiers']['imdb'] = self.info['IMDb']
 
         if '上映日期' in self.info:
-            movie['pubdates'] = self.info['上映日期']
+            data['pubdates'] = self.info['上映日期']
         elif '首播' in self.info:
-            movie['pubdates'] = self.info['首播']
+            data['pubdates'] = self.info['首播']
 
         # Copy other info from info block
         attrs_map = {
@@ -137,16 +201,16 @@ class Douban:
 
         for k, v in attrs_map.items():
             if v in self.info:
-                movie[k] = self.info[v]
+                data[k] = self.info[v]
 
         for k in ['alt_title', 'pubdates', 'writers', 'genres', 'durations', 'countries', 'languages']:
-            if k in movie:
-                movie[k] = [x.strip() for x in movie[k].split('/')]
+            if k in data:
+                data[k] = [x.strip() for x in data[k].split('/')]
 
-        return movie
+        return Movie(**data)
 
     def parse_music(self):
-        music = dict(
+        data = dict(
             title=self.title,
             authors=self.musicians,
             identifiers={ 'douban': self.douban_id },
@@ -156,7 +220,7 @@ class Douban:
         )
 
         if '条形码' in self.info:
-            music['identifiers']['barcode'] = self.info['条形码']
+            data['identifiers']['barcode'] = self.info['条形码']
 
         # Copy other info from info block
         attrs_map = {
@@ -171,9 +235,9 @@ class Douban:
 
         for k, v in attrs_map.items():
             if v in self.info:
-                music[k] = self.info[v]
+                data[k] = self.info[v]
 
-        return music
+        return Music(**data)
 
     def detect_kind(self):
         return self.parse_meta('og:type')
@@ -206,6 +270,8 @@ class Douban:
     def url(self):
         if self.kind == 'series':
             return self.selector.css("span[class='pl rr'] a").attrib['href'].split('?')[0]
+        elif self.kind == 'doulist':
+            return self.selector.css("div.doulist-filter a").attrib['href']
         else:
             return self.parse_meta('og:url')
 
