@@ -6,6 +6,6 @@ class Series(BaseModel):
     identifiers: dict[str, str] = Field(default_factory=dict)
     url: str = ""
     press: str = ""
-    books: list[Book] = Field(default_factory=list)
+    items: list[Book] = Field(default_factory=list)
     intro: str = ""
     tags: list[str] = Field(default_factory=list)

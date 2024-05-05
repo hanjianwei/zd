@@ -98,7 +98,7 @@ class Douban:
         )
 
         book_elems = self.selector.css("li[class='subject-item'] div.info")
-        data['books'] = [self.parse_series_book(elem) for elem in book_elems]
+        data['items'] = [self.parse_series_book(elem) for elem in book_elems]
         self.next_url = self.selector.css("span.next a::attr(href)").get()
 
         return Series(**data)
