@@ -35,7 +35,7 @@ zd = "zd.cli:main"
 [[tool.poetry.source]]
 name = "mirrors"
 url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
-priority = "default"
+priority = "primary"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
